@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pilot Debrief & Schedule Manager</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- React & React-DOM CDN -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- Babel Standalone CDN -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #090d16;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #334155;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans antialiased min-h-screen">
+
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const PHASES = [
+      { id: 'Nonnormals', name: 'Nonnormals', icon: '⚠️', color: 'bg-rose-500/10 border-rose-500/30 text-rose-400' },
+      { id: 'Preflight', name: 'Preflight', icon: '📋', color: 'bg-amber-500/10 border-amber-500/30 text-amber-400' },
+      { id: 'TaxiOut', name: 'Taxi Out', icon: '🚜', color: 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400' },
+      { id: 'Takeoff', name: 'Takeoff', icon: '🛫', color: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' },
+      { id: 'Climb', name: 'Climb', icon: '↗️', color: 'bg-teal-500/10 border-teal-500/30 text-teal-400' },
+      { id: 'Cruise', name: 'Cruise', icon: '✈️', color: 'bg-sky-500/10 border-sky-500/30 text-sky-400' },
+      { id: 'Descent', name: 'Descent', icon: '↘️', color: 'bg-blue-500/10 border-blue-500/30 text-blue-400' },
+      { id: 'Approach', name: 'Approach', icon: '🛬', color: 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400' },
+      { id: 'Landing', name: 'Landing', icon: '🛬', color: 'bg-purple-500/10 border-purple-500/30 text-purple-400' },
+      { id: 'TaxiIn', name: 'Taxi In', icon: '🛺', color: 'bg-fuchsia-500/10 border-fuchsia-500/30 text-fuchsia-400' },
+      { id: 'RampIn', name: 'Ramp In', icon: '🅿️', color: 'bg-slate-500/10 border-slate-500/30 text-slate-400' },
+    ];
+
+    const DEP_PHASES = ['Preflight', 'TaxiOut', 'Takeoff', 'Climb'];
+    const ARR_PHASES = ['Descent', 'Approach', 'Landing', 'TaxiIn', 'RampIn'];
+
+    const INITIAL_SCHEDULES = {
+      '2026-11-01': { type: 'OFF', text: 'OFF' },
+      '2026-11-02': { 
+        type: 'FLIGHT', 
+        outbound: { flightNo: '927', dep: 'GMP', arr: 'PUS', depTime: '17:50', arrTime: '19:52' },
+        inbound: { flightNo: 'L/O', dep: 'PUS', arr: 'GMP', depTime: '19:52', arrTime: '12:55' }
+      },
+      '2026-11-03': { 
+        type: 'FLIGHT', 
+        outbound: { flightNo: '321/322', dep: 'PUS', arr: 'KIX', depTime: '12:55', arrTime: '18:06' },
+        inbound: { flightNo: 'L/O', dep: 'KIX', arr: 'PUS', depTime: '18:06', arrTime: '08:15' }
+      },
+      '2026-11-04': { 
+        type: 'FLIGHT', 
+        outbound: { flightNo: '319/332', dep: 'PUS', arr: 'KIX', depTime: '08:15', arrTime: '17:00' },
+        inbound: { flightNo: '718', dep: 'CJU', arr: 'GMP', depTime: '08:15', arrTime: '17:00' }
+      },
+      '2026-11-05': { type: 'OFF', text: 'OFF' },
+      '2026-11-06': { 
+        type: 'FLIGHT', 
+        outbound: { flightNo: '711/834', dep: 'GMP', arr: 'CJU', depTime: '10:45', arrTime: '20:17' },
+        inbound: { flightNo: '835/836', dep: 'CJJ', arr: 'CJU', depTime: '10:45', arrTime: '20:17' }
+      },
+      '2026-11-07': { 
+        type: 'FLIGHT', 
+        outbound: { flightNo: '045', dep: 'CJJ', arr: 'CXR', depTime: '19:20', arrTime: '00:11' },
+        inbound: { flightNo: 'L/O', dep: 'CXR', arr: 'CJJ', depTime: '20:17', arrTime: '19:20' }
+      },
+      '2026-11-08': { 
+        type: 'FLIGHT', 
+        outbound: { flightNo: '045', dep: 'CJJ', arr: 'CXR', depTime: '19:20', arrTime: '00:11' },
+        inbound: { flightNo: 'L/O', dep: 'CXR', arr: 'CJJ', depTime: '19:20', arrTime: '00:11' }
+      },
+      '2026-11-09': { 
+        type: 'FLIGHT', 
+        outbound: { flightNo: '046', dep: 'CXR', arr: 'CJJ', depTime: '23:55', arrTime: '08:25' },
+        inbound: { flightNo: 'L/O', dep: 'CJJ', arr: 'CXR', depTime: '00:11', arrTime: '23:55' }
+      },
+      '2026-11-10': { 
+        type: 'FLIGHT', 
+        outbound: { flightNo: '831/712', dep: 'CJJ', arr: 'CJU', depTime: '08:45', arrTime: '13:24' },
+        inbound: { flightNo: 'GMP', dep: 'CJU', arr: 'GMP', depTime: '08:25', arrTime: '08:45' }
+      },
+      '2026-11-11': { type: 'OFF', text: 'OFF' },
+      '2026-11-12': { type: 'DUTY', text: 'RESV 00:00~23:59' },
+      '2026-11-13': { 
+        type: 'FLIGHT', 
+        outbound: { flightNo: '263', dep: 'ICN', arr: 'CTS', depTime: '08:40', arrTime: '13:00' },
+        inbound: { flightNo: '264', dep: 'CTS', arr: 'ICN', depTime: '14:10', arrTime: '18:10' }
+      },
+      '2026-11-14': { type: 'DUTY', text: 'SBY-B 13:00~23:59' },
+      '2026-11-15': { type: 'DUTY', text: 'RESV 00:00~23:59' },
+      '2026-11-16': { type: 'OFF', text: 'OFF' },
+      '2026-11-17': { type: 'DUTY', text: 'SBY-A 05:00~17:00' },
+      '2026-11-18': { 
+        type: 'FLIGHT', 
+        outbound: { flightNo: '927', dep: 'GMP', arr: 'PUS', depTime: '17:50', arrTime: '19:55' },
+        inbound: { flightNo: 'L/O', dep: 'PUS', arr: 'GMP', depTime: '19:52', arrTime: '12:55' }
+      },
+      '2026-11-19': { 
+        type: 'FLIGHT', 
+        outbound: { flightNo: '321/322', dep: 'PUS', arr: 'KIX', depTime: '12:55', arrTime: '18:10' },
+        inbound: { flightNo: 'L/O', dep: 'KIX', arr: 'PUS', depTime: '19:55', arrTime: '12:55' }
+      },
+      '2026-11-20': { 
+        type: 'FLIGHT', 
+        outbound: { flightNo: '319/332', dep: 'PUS', arr: 'KIX', depTime: '08:15', arrTime: '16:30' },
+        inbound: { flightNo: 'L/O', dep: 'CJU', arr: 'GMP', depTime: '18:10', arrTime: '08:15' }
+      },
+      '2026-11-21': { type: 'OFF', text: 'RQOFF' },
+      '2026-11-22': { 
+        type: 'FLIGHT', 
+        outbound: { flightNo: '717/862', dep: 'GMP', arr: 'CJU', depTime: '13:06', arrTime: '21:10' },
+        inbound: { flightNo: '863/726', dep: 'CJJ', arr: 'GMP', depTime: '13:06', arrTime: '21:10' }
+      },
+      '2026-11-23': { 
+        type: 'FLIGHT', 
+        outbound: { flightNo: '101', dep: 'ICN', arr: 'BKK', depTime: '19:50', arrTime: '00:10' },
+        inbound: { flightNo: 'ORAL', dep: 'ICN', arr: 'BKK', depTime: '17:10', arrTime: '18:10' }
+      },
+      '2026-11-24': { 
+        type: 'FLIGHT', 
+        outbound: { flightNo: '101', dep: 'ICN', arr: 'BKK', depTime: '19:50', arrTime: '00:10' },
+        inbound: { flightNo: 'L/O', dep: 'BKK', arr: 'ICN', depTime: '00:10', arrTime: '00:20' }
+      },
+      '2026-11-25': { 
+        type: 'FLIGHT', 
+        outbound: { flightNo: '102', dep: 'BKK', arr: 'ICN', depTime: '00:20', arrTime: '09:00' },
+        inbound: { flightNo: 'L/O', dep: 'ICN', arr: 'BKK', depTime: '00:10', arrTime: '00:20' }
+      },
+      '2026-11-26': { type: 'OFF', text: 'OFF' },
+      '2026-11-27': { type: 'OFF', text: 'OFF' },
+      '2026-11-28': { type: 'OFF', text: 'OFF' },
+      '2026-11-29': { type: 'OFF', text: 'OFF' },
+      '2026-11-30': { type: 'OFF', text: 'VAC' },
+    };
+
+    function App() {
+      const [activeTab, setActiveTab] = useState('calendar');
+      const [selectedDate, setSelectedDate] = useState('2026-11-13');
+      const [currentYearMonth, setCurrentYearMonth] = useState({ year: 2026, month: 11 });
+      const [activeFlightLeg, setActiveFlightLeg] = useState('outbound');
+      const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+
+      const [schedules, setSchedules] = useState(() => {
+        const saved = localStorage.getItem('pilot_schedules');
+        return saved ? JSON.parse(saved) : INITIAL_SCHEDULES;
+      });
+
+      const [flightLogs, setFlightLogs] = useState(() => {
+        const saved = localStorage.getItem('pilot_flight_logs');
+        if (saved) return JSON.parse(saved);
+        
+        return {
+          '2026-11-13': {
+            outbound: {
+              metadata: {
+                captain: '김항공 기장님',
+                depRwy: '34L',
+                sid: 'NUKER 1K',
+                star: 'SPEAR 1A',
+                arrRwy: '19',
+                flightNo: '263',
+                dep: 'ICN',
+                arr: 'CTS',
+                depTime: '08:40',
+                arrTime: '13:00'
+              },
+              phases: {
+                Preflight: [
+                  { id: '1', situation: 'FMC 데이터 검증 중 착오 발생 가능성', myAction: 'ZFW 입력 전 Gross Weight 차트 재확인 진행함', correctAction: 'ZFW 및 Fuel Weight 동시 크로스체크 및 CPDLC 로드시트 매칭' }
+                ],
+                Takeoff: [
+                  { id: '2', situation: '시야 둔화 조건 및 Crosswind 15kts 감지됨', myAction: 'Smooth한 러더 제어와 함께 VR 전 Aileron deflection 적용', correctAction: 'Centerline 유지 및 VR 체크포인트 정확한 픽업' }
+                ],
+                Approach: [
+                  { id: '3', situation: 'CTS 공항 난기류 및 Windshear Alert 감지', myAction: 'Go-around 대비 thrust 설정 및 Flap 설정 조율', correctAction: 'Stabilized Approach 1000ft 이전에 미달시 지체없이 Go-around 실행' }
+                ]
+              }
+            },
+            inbound: {
+              metadata: {
+                captain: '이운항 기장님',
+                depRwy: '19',
+                sid: 'SPEAR 1D',
+                star: 'NUKER 1A',
+                arrRwy: '33R',
+                flightNo: '264',
+                dep: 'CTS',
+                arr: 'ICN',
+                depTime: '14:10',
+                arrTime: '18:10'
+              },
+              phases: {
+                Preflight: [
+                  { id: '101', situation: 'CTS Quick Turnaround 지연 발생', myAction: '연료 재급유 확인 후 칵핏 스위치 세팅 가속화', correctAction: 'Checklist 누락 방지를 위해 표준 2-Man Crosscheck 실시' }
+                ],
+                Landing: [
+                  { id: '102', situation: 'ICN 33R 측풍 착륙 시 FLARE 타이밍 미세 오차', myAction: 'Pitch 호화 제어 후 림 러더 제어 적용', correctAction: '메인 기어 터치다운 순간까지 윙드롭 예방' }
+                ]
+              }
+            }
+          }
+        };
+      });
+
+      useEffect(() => {
+        if (window.lucide) {
+          window.lucide.createIcons();
+        }
+      });
+
+      useEffect(() => {
+        localStorage.setItem('pilot_schedules', JSON.stringify(schedules));
+      }, [schedules]);
+
+      useEffect(() => {
+        localStorage.setItem('pilot_flight_logs', JSON.stringify(flightLogs));
+      }, [flightLogs]);
+
+      const getLogForDate = (dateStr) => {
+        const schedule = schedules[dateStr] || {};
+        
+        const defaultOutboundMeta = {
+          captain: '',
+          depRwy: '',
+          sid: '',
+          star: '',
+          arrRwy: '',
+          flightNo: schedule.outbound?.flightNo || '263',
+          dep: schedule.outbound?.dep || 'ICN',
+          arr: schedule.outbound?.arr || 'CTS',
+          depTime: schedule.outbound?.depTime || '08:40',
+          arrTime: schedule.outbound?.arrTime || '13:00'
+        };
+
+        const defaultInboundMeta = {
+          captain: '',
+          depRwy: '',
+          sid: '',
+          star: '',
+          arrRwy: '',
+          flightNo: schedule.inbound?.flightNo || '264',
+          dep: schedule.inbound?.dep || 'CTS',
+          arr: schedule.inbound?.arr || 'ICN',
+          depTime: schedule.inbound?.depTime || '14:10',
+          arrTime: schedule.inbound?.arrTime || '18:10'
+        };
+
+        const existingLog = flightLogs[dateStr];
+
+        if (!existingLog) {
+          return {
+            outbound: { metadata: defaultOutboundMeta, phases: {} },
+            inbound: { metadata: defaultInboundMeta, phases: {} }
+          };
+        }
+
+        return {
+          outbound: {
+            metadata: { ...defaultOutboundMeta, ...(existingLog.outbound?.metadata || {}) },
+            phases: existingLog.outbound?.phases || {}
+          },
+          inbound: {
+            metadata: { ...defaultInboundMeta, ...(existingLog.inbound?.metadata || {}) },
+            phases: existingLog.inbound?.phases || {}
+          }
+        };
+      };
+
+      const handleSelectDate = (dateStr, leg = 'outbound') => {
+        setSelectedDate(dateStr);
+        setActiveFlightLeg(leg);
+        setActiveTab('review');
+      };
+
+      const handleUpdateMetadata = (dateStr, leg, field, value) => {
+        setFlightLogs(prev => {
+          const existing = prev[dateStr] || getLogForDate(dateStr);
+          const targetLegData = existing[leg] || { metadata: {}, phases: {} };
+
+          return {
+            ...prev,
+            [dateStr]: {
+              ...existing,
+              [leg]: {
+                ...targetLegData,
+                metadata: {
+                  ...targetLegData.metadata,
+                  [field]: value
+                }
+              }
+            }
+          };
+        });
+      };
+
+      const handleAddPhaseLog = (dateStr, leg, phaseId) => {
+        const newEntry = {
+          id: Date.now().toString(),
+          situation: '',
+          myAction: '',
+          correctAction: ''
+        };
+
+        setFlightLogs(prev => {
+          const existing = prev[dateStr] || getLogForDate(dateStr);
+          const targetLegData = existing[leg] || { metadata: {}, phases: {} };
+          const phaseLogs = targetLegData.phases[phaseId] || [];
+
+          return {
+            ...prev,
+            [dateStr]: {
+              ...existing,
+              [leg]: {
+                ...targetLegData,
+                phases: {
+                  ...targetLegData.phases,
+                  [phaseId]: [...phaseLogs, newEntry]
+                }
+              }
+            }
+          };
+        });
+      };
+
+      const handleUpdatePhaseLog = (dateStr, leg, phaseId, logId, field, value) => {
+        setFlightLogs(prev => {
+          const existing = prev[dateStr] || getLogForDate(dateStr);
+          const targetLegData = existing[leg] || { metadata: {}, phases: {} };
+          const phaseLogs = targetLegData.phases[phaseId] || [];
+          const updatedLogs = phaseLogs.map(log => log.id === logId ? { ...log, [field]: value } : log);
+
+          return {
+            ...prev,
+            [dateStr]: {
+              ...existing,
+              [leg]: {
+                ...targetLegData,
+                phases: {
+                  ...targetLegData.phases,
+                  [phaseId]: updatedLogs
+                }
+              }
+            }
+          };
+        });
+      };
+
+      const handleDeletePhaseLog = (dateStr, leg, phaseId, logId) => {
+        setFlightLogs(prev => {
+          const existing = prev[dateStr] || getLogForDate(dateStr);
+          const targetLegData = existing[leg] || { metadata: {}, phases: {} };
+          const phaseLogs = targetLegData.phases[phaseId] || [];
+          const updatedLogs = phaseLogs.filter(log => log.id !== logId);
+
+          return {
+            ...prev,
+            [dateStr]: {
+              ...existing,
+              [leg]: {
+                ...targetLegData,
+                phases: {
+                  ...targetLegData.phases,
+                  [phaseId]: updatedLogs
+                }
+              }
+            }
+          };
+        });
+      };
+
+      const handleImportSchedule = (year, month, importedSchedules) => {
+        setSchedules(prev => ({
+          ...prev,
+          ...importedSchedules
+        }));
+        setCurrentYearMonth({ year, month });
+        setIsSyncModalOpen(false);
+      };
+
+      const currentLog = getLogForDate(selectedDate);
+      const currentSchedule = schedules[selectedDate];
+
+      return (
+        <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans antialiased">
+          <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-50">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="flex items-center justify-between h-16">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-indigo-600/20 border border-indigo-500/30 rounded-xl text-indigo-400">
+                    <i data-lucide="plane" class="w-6 h-6"></i>
+                  </div>
+                  <div>
+                    <h1 className="font-bold text-lg text-white tracking-wide flex items-center gap-2">
+                      PILOT DEBRIEF & SCHEDULE
+                    </h1>
+                    <p className="text-xs text-slate-400">비행 일지 & Phase별 분석 시스템</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setIsSyncModalOpen(true)}
+                    className="flex items-center space-x-1.5 px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 rounded-xl text-xs font-semibold transition-all"
+                  >
+                    <i data-lucide="calendar" class="w-4 h-4 text-indigo-400"></i>
+                    <span>스케줄 동기화/사진 업로드</span>
+                  </button>
+
+                  <nav className="flex space-x-1 sm:space-x-2 bg-slate-950/60 p-1 rounded-xl border border-slate-800 text-xs sm:text-sm font-medium">
+                    <button
+                      onClick={() => setActiveTab('calendar')}
+                      className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-all ${
+                        activeTab === 'calendar' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                      }`}
+                    >
+                      <i data-lucide="calendar" class="w-4 h-4"></i>
+                      <span className="hidden md:inline">월간 스케줄</span>
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('review')}
+                      className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-all ${
+                        activeTab === 'review' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                      }`}
+                    >
+                      <i data-lucide="file-text" class="w-4 h-4"></i>
+                      <span className="hidden md:inline">일자별 비행 후기</span>
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('timeline')}
+                      className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-all ${
+                        activeTab === 'timeline' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                      }`}
+                    >
+                      <i data-lucide="layers" class="w-4 h-4"></i>
+                      <span className="hidden md:inline">Phase별 시각적 종합</span>
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('depSummary')}
+                      className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-all ${
+                        activeTab === 'depSummary' ? 'bg-sky-600 text-white shadow-lg shadow-sky-600/30' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                      }`}
+                    >
+                      <i data-lucide="navigation" class="w-4 h-4"></i>
+                      <span className="hidden md:inline">출발공항 종합</span>
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('arrSummary')}
+                      className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-all ${
+                        activeTab === 'arrSummary' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                      }`}
+                    >
+                      <i data-lucide="navigation" class="w-4 h-4"></i>
+                      <span className="hidden md:inline">도착공항 종합</span>
+                    </button>
+                  </nav>
+                </div>
+              </div>
+            </div>
+          </header>
+
+          <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+            {activeTab === 'calendar' && (
+              <CalendarView 
+                currentYearMonth={currentYearMonth}
+                setCurrentYearMonth={setCurrentYearMonth}
+                schedules={schedules}
+                selectedDate={selectedDate}
+                onSelectDate={handleSelectDate}
+                onOpenSyncModal={() => setIsSyncModalOpen(true)}
+              />
+            )}
+
+            {activeTab === 'review' && (
+              <FlightReviewView 
+                dateStr={selectedDate}
+                schedule={currentSchedule}
+                logData={currentLog}
+                activeLeg={activeFlightLeg}
+                setActiveLeg={setActiveFlightLeg}
+                onUpdateMetadata={handleUpdateMetadata}
+                onAddLog={handleAddPhaseLog}
+                onUpdateLog={handleUpdatePhaseLog}
+                onDeleteLog={handleDeletePhaseLog}
+                onNavigateToTimeline={() => setActiveTab('timeline')}
+              />
+            )}
+
+            {activeTab === 'timeline' && (
+              <PhaseTimelineView 
+                flightLogs={flightLogs}
+              />
+            )}
+
+            {activeTab === 'depSummary' && (
+              <AirportSummaryView 
+                type="departure"
+                flightLogs={flightLogs}
+                schedules={schedules}
+                phases={DEP_PHASES}
+                onSelectDate={handleSelectDate}
+              />
+            )}
+
+            {activeTab === 'arrSummary' && (
+              <AirportSummaryView 
+                type="arrival"
+                flightLogs={flightLogs}
+                schedules={schedules}
+                phases={ARR_PHASES}
+                onSelectDate={handleSelectDate}
+              />
+            )}
+          </main>
+
+          {isSyncModalOpen && (
+            <ScheduleSyncModal 
+              onClose={() => setIsSyncModalOpen(false)}
+              onImportSchedule={handleImportSchedule}
+            />
+          )}
+
+          <footer className="border-t border-slate-900 bg-slate-950 py-4 text-center text-xs text-slate-500">
+            Flight Log & Debriefing Workspace • Designed for Pilots & Crew Review
+          </footer>
+        </div>
+      );
+    }
+
+    function ScheduleSyncModal({ onClose, onImportSchedule }) {
+      const [targetYear, setTargetYear] = useState(2026);
+      const [targetMonth, setTargetMonth] = useState(12);
+      const [isProcessingImage, setIsProcessingImage] = useState(false);
+      const [imageUploaded, setImageUploaded] = useState(false);
+
+      const handleApplyDecMock = () => {
+        setIsProcessingImage(true);
+        setTimeout(() => {
+          const decSchedules = {
+            '2026-12-01': { type: 'OFF', text: 'OFF' },
+            '2026-12-03': { 
+              type: 'FLIGHT', 
+              outbound: { flightNo: '263', dep: 'ICN', arr: 'CTS', depTime: '08:40', arrTime: '13:00' },
+              inbound: { flightNo: '264', dep: 'CTS', arr: 'ICN', depTime: '14:10', arrTime: '18:10' }
+            },
+            '2026-12-10': { 
+              type: 'FLIGHT', 
+              outbound: { flightNo: '101', dep: 'ICN', arr: 'BKK', depTime: '19:50', arrTime: '00:10' },
+              inbound: { flightNo: '102', dep: 'BKK', arr: 'ICN', depTime: '01:20', arrTime: '09:00' }
+            },
+            '2026-12-25': { type: 'DUTY', text: 'SBY-A 05:00~17:00' }
+          };
+          setIsProcessingImage(false);
+          onImportSchedule(targetYear, targetMonth, decSchedules);
+        }, 1200);
+      };
+
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 space-y-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center space-x-2">
+                <i data-lucide="calendar" class="w-5 h-5 text-indigo-400"></i>
+                <h3 className="text-lg font-bold text-white">스케줄 사진 동기화 & 월 선택</h3>
+              </div>
+              <button onClick={onClose} className="text-slate-400 hover:text-white">✕</button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">동기화 대상 연도 및 월</label>
+                <div className="flex gap-2">
+                  <select 
+                    value={targetYear} 
+                    onChange={(e) => setTargetYear(Number(e.target.value))}
+                    className="bg-slate-950 border border-slate-700 rounded-lg p-2 text-white flex-1"
+                  >
+                    <option value={2026}>2026년</option>
+                    <option value={2027}>2027년</option>
+                  </select>
+                  <select 
+                    value={targetMonth} 
+                    onChange={(e) => setTargetMonth(Number(e.target.value))}
+                    className="bg-slate-950 border border-slate-700 rounded-lg p-2 text-white flex-1"
+                  >
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                      <option key={m} value={m}>{m}월</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="border border-dashed border-slate-700 bg-slate-950 rounded-xl p-6 text-center space-y-3">
+                <div className="w-10 h-10 mx-auto bg-indigo-600/20 text-indigo-400 rounded-full flex items-center justify-center">
+                  <i data-lucide="file-text" class="w-5 h-5"></i>
+                </div>
+                <div>
+                  <p className="text-slate-200 font-semibold">스케줄 표 이미지 업로드</p>
+                  <p className="text-slate-400 text-[11px] mt-0.5">캡처한 비행 스케줄 사진을 등록하면 자동 분석되어 달력에 반영됩니다.</p>
+                </div>
+                <input 
+                  type="file" 
+                  accept="image/*"
+                  onChange={() => setImageUploaded(true)}
+                  className="hidden" 
+                  id="schedule-file-input" 
+                />
+                <label 
+                  htmlFor="schedule-file-input"
+                  className="inline-block bg-slate-800 hover:bg-slate-700 text-indigo-300 px-4 py-2 rounded-lg cursor-pointer font-semibold border border-slate-700 transition-colors"
+                >
+                  {imageUploaded ? '✓ 이미지 등록 완료 (다시 선택)' : '스케줄 사진 선택'}
+                </label>
+              </div>
+
+              {isProcessingImage && (
+                <div className="text-center py-2 text-indigo-400 font-semibold flex items-center justify-center gap-2">
+                  <span className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin"></span>
+                  스케줄 이미지 데이터 추출 중...
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+              <button 
+                onClick={onClose}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold"
+              >
+                취소
+              </button>
+              <button 
+                onClick={handleApplyDecMock}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-indigo-600/30"
+              >
+                동기화 적용하기
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function CalendarView({ currentYearMonth, setCurrentYearMonth, schedules, selectedDate, onSelectDate, onOpenSyncModal }) {
+      const { year, month } = currentYearMonth;
+      const daysInMonth = new Date(year, month, 0).getDate();
+      const firstDayOfWeek = new Date(year, month - 1, 1).getDay();
+
+      const prevMonth = () => {
+        if (month === 1) setCurrentYearMonth({ year: year - 1, month: 12 });
+        else setCurrentYearMonth({ year, month: month - 1 });
+      };
+
+      const nextMonth = () => {
+        if (month === 12) setCurrentYearMonth({ year: year + 1, month: 1 });
+        else setCurrentYearMonth({ year, month: month + 1 });
+      };
+
+      const dayCells = [];
+      for (let i = 0; i < firstDayOfWeek; i++) {
+        dayCells.push(null);
+      }
+      for (let d = 1; d <= daysInMonth; d++) {
+        dayCells.push(d);
+      }
+
+      const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+      return (
+        <div className="space-y-4">
+          <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex items-center justify-between shadow-xl">
+            <div className="flex items-center space-x-4">
+              <button onClick={prevMonth} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 transition-colors">
+                <i data-lucide="chevron-left" class="w-5 h-5"></i>
+              </button>
+              <h2 className="text-xl font-bold text-white tracking-wide">
+                {year}-{String(month).padStart(2, '0')}
+              </h2>
+              <button onClick={nextMonth} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 transition-colors">
+                <i data-lucide="chevron-right" class="w-5 h-5"></i>
+              </button>
+            </div>
+
+            <div className="flex items-center space-x-3 text-xs">
+              <button
+                onClick={onOpenSyncModal}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-semibold transition-all shadow-md shadow-indigo-600/20"
+              >
+                <i data-lucide="plus" class="w-4 h-4"></i>
+                <span>스케줄 추가/동기화</span>
+              </button>
+
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                <span className="w-2 h-2 rounded-full bg-rose-400"></span> 출발편
+              </span>
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                <span className="w-2 h-2 rounded-full bg-sky-400"></span> 복귀편
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl">
+            <div className="grid grid-cols-7 bg-slate-950 border-b border-slate-800 text-center font-semibold text-xs py-3">
+              {weekDays.map((wd, idx) => (
+                <div key={wd} className={idx === 0 ? 'text-rose-500' : idx === 6 ? 'text-sky-400' : 'text-slate-400'}>
+                  {wd}
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-7 auto-rows-fr bg-slate-900 border-b border-slate-800">
+              {dayCells.map((dayNum, idx) => {
+                if (!dayNum) {
+                  return <div key={`empty-${idx}`} className="min-h-[110px] bg-slate-950/40 border-r border-b border-slate-800/50" />;
+                }
+
+                const dateKey = `${year}-${String(month).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+                const sched = schedules[dateKey];
+                const isSelected = selectedDate === dateKey;
+                const isSunday = idx % 7 === 0;
+                const isSaturday = idx % 7 === 6;
+
+                return (
+                  <div
+                    key={dateKey}
+                    className={`min-h-[110px] p-2 border-r border-b border-slate-800 flex flex-col justify-between transition-all hover:bg-slate-800/50 relative group ${
+                      isSelected ? 'ring-2 ring-indigo-500 ring-inset bg-indigo-950/30' : ''
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className={`text-xs font-bold ${isSunday ? 'text-rose-400' : isSaturday ? 'text-sky-400' : 'text-slate-300'}`}>
+                        {dayNum}
+                      </span>
+                      {isSelected && (
+                        <span className="text-[10px] bg-indigo-500 text-white font-semibold px-1.5 py-0.5 rounded">
+                          선택됨
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex-1 flex flex-col justify-center space-y-1">
+                      {sched ? (
+                        sched.type === 'FLIGHT' ? (
+                          <div className="space-y-1">
+                            {sched.outbound && (
+                              <div 
+                                onClick={() => onSelectDate(dateKey, 'outbound')}
+                                className="bg-rose-950/40 border border-rose-500/20 rounded p-1.5 text-[11px] hover:bg-rose-900/50 hover:border-rose-500/60 cursor-pointer transition-all"
+                              >
+                                <div className="flex items-center justify-between font-bold text-rose-300">
+                                  <span>out: {sched.outbound.flightNo}</span>
+                                  <span className="text-[10px] text-slate-400">{sched.outbound.depTime}~{sched.outbound.arrTime}</span>
+                                </div>
+                                <div className="text-slate-300 text-[10px] font-medium flex items-center gap-1 mt-0.5">
+                                  <span>{sched.outbound.dep}</span>
+                                  <i data-lucide="arrow-right" class="w-2.5 h-2.5 text-slate-500"></i>
+                                  <span>{sched.outbound.arr}</span>
+                                </div>
+                              </div>
+                            )}
+                            {sched.inbound && (
+                              <div 
+                                onClick={() => onSelectDate(dateKey, 'inbound')}
+                                className="bg-sky-950/40 border border-sky-500/20 rounded p-1.5 text-[11px] hover:bg-sky-900/50 hover:border-sky-500/60 cursor-pointer transition-all"
+                              >
+                                <div className="flex items-center justify-between font-bold text-sky-300">
+                                  <span>in: {sched.inbound.flightNo}</span>
+                                  <span className="text-[10px] text-slate-400">{sched.inbound.depTime}~{sched.inbound.arrTime}</span>
+                                </div>
+                                <div className="text-slate-300 text-[10px] font-medium flex items-center gap-1 mt-0.5">
+                                  <span>{sched.inbound.dep}</span>
+                                  <i data-lucide="arrow-right" class="w-2.5 h-2.5 text-slate-500"></i>
+                                  <span>{sched.inbound.arr}</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ) : sched.type === 'DUTY' ? (
+                          <div 
+                            onClick={() => onSelectDate(dateKey, 'outbound')}
+                            className="bg-amber-950/30 border border-amber-500/30 rounded p-1.5 text-center text-[11px] font-semibold text-amber-300 cursor-pointer hover:bg-amber-900/40 transition-colors"
+                          >
+                            {sched.text}
+                          </div>
+                        ) : (
+                          <div 
+                            onClick={() => onSelectDate(dateKey, 'outbound')}
+                            className="bg-slate-800/40 rounded p-2 text-center text-xs font-semibold text-slate-500 cursor-pointer hover:bg-slate-800 transition-colors"
+                          >
+                            {sched.text || 'OFF'}
+                          </div>
+                        )
+                      ) : (
+                        <div 
+                          onClick={() => onSelectDate(dateKey, 'outbound')}
+                          className="text-center text-[10px] text-slate-600 cursor-pointer hover:text-indigo-400 transition-colors"
+                        >
+                          + 후기 작성
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function FlightReviewView({ 
+      dateStr, 
+      schedule, 
+      logData, 
+      activeLeg,
+      setActiveLeg,
+      onUpdateMetadata, 
+      onAddLog, 
+      onUpdateLog, 
+      onDeleteLog,
+      onNavigateToTimeline
+    }) {
+      const currentLegData = logData[activeLeg] || { metadata: {}, phases: {} };
+      const { metadata, phases } = currentLegData;
+
+      return (
+        <div className="space-y-6">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+              <div>
+                <div className="flex items-center space-x-3">
+                  <span className="bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 font-mono font-bold text-sm px-3 py-1 rounded-lg">
+                    DATE: {dateStr}
+                  </span>
+                  <h2 className="text-xl font-bold text-white">비행 상세 후기 작성</h2>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">출발편과 복귀편을 선택하여 각 구간별 디브리핑을 작성하세요.</p>
+              </div>
+
+              <button 
+                onClick={onNavigateToTimeline}
+                className="flex items-center justify-center space-x-2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-600/30 transition-all text-xs"
+              >
+                <i data-lucide="layers" class="w-4 h-4"></i>
+                <span>Phase별 시각적 타임라인으로 이동</span>
+              </button>
+            </div>
+
+            <div className="flex rounded-xl bg-slate-950 p-1.5 border border-slate-800">
+              <button
+                onClick={() => setActiveLeg('outbound')}
+                className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-xs flex items-center justify-center space-x-2 transition-all ${
+                  activeLeg === 'outbound' ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/30' : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                }`}
+              >
+                <i data-lucide="plane" class="w-4 h-4"></i>
+                <span>출발편 (Outbound) 후기 작성</span>
+                <span className="text-[10px] opacity-80 font-mono">({metadata.dep} → {metadata.arr})</span>
+              </button>
+              <button
+                onClick={() => setActiveLeg('inbound')}
+                className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-xs flex items-center justify-center space-x-2 transition-all ${
+                  activeLeg === 'inbound' ? 'bg-sky-600 text-white shadow-lg shadow-sky-600/30' : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                }`}
+              >
+                <i data-lucide="plane" class="w-4 h-4 rotate-180"></i>
+                <span>복귀편 (Inbound) 후기 작성</span>
+                <span className="text-[10px] opacity-80 font-mono">({metadata.dep} → {metadata.arr})</span>
+              </button>
+            </div>
+
+            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                <span className={`text-xs font-semibold flex items-center gap-1.5 ${activeLeg === 'outbound' ? 'text-rose-400' : 'text-sky-400'}`}>
+                  <i data-lucide="plane" class={`w-3.5 h-3.5 ${activeLeg === 'inbound' ? 'rotate-180' : ''}`}></i>
+                  {activeLeg === 'outbound' ? '출발편 (Outbound)' : '복귀편 (Inbound)'} 운항 스케줄
+                </span>
+                <span className="text-xs font-mono font-bold text-slate-300">
+                  편명: {metadata.flightNo || 'N/A'}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-4 text-xs">
+                <div>
+                  <span className="text-slate-500 block text-[10px]">출발공항 & 시간</span>
+                  <span className="font-mono font-semibold text-white text-sm">{metadata.dep}</span>
+                  <span className="text-slate-400 ml-2 font-mono">{metadata.depTime}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px]">도착공항 & 시간</span>
+                  <span className="font-mono font-semibold text-white text-sm">{metadata.arr}</span>
+                  <span className="text-slate-400 ml-2 font-mono">{metadata.arrTime}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-slate-950/70 p-4 rounded-xl border border-slate-800 space-y-3">
+              <h3 className="text-xs font-bold text-slate-300 tracking-wider uppercase flex items-center gap-2">
+                <i data-lucide="user" class="w-3.5 h-3.5 text-indigo-400"></i>
+                {activeLeg === 'outbound' ? '출발편' : '복귀편'} 운항 정보 입력 (Pilot Log Entries)
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                <div>
+                  <label className="block text-[11px] text-slate-400 mb-1">기장님 이름</label>
+                  <input 
+                    type="text" 
+                    value={metadata.captain || ''}
+                    onChange={(e) => onUpdateMetadata(dateStr, activeLeg, 'captain', e.target.value)}
+                    placeholder="예: 김항공 기장"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-slate-400 mb-1">DEP RWY (출발 활주로)</label>
+                  <input 
+                    type="text" 
+                    value={metadata.depRwy || ''}
+                    onChange={(e) => onUpdateMetadata(dateStr, activeLeg, 'depRwy', e.target.value)}
+                    placeholder="예: 34L"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-slate-400 mb-1">SID (표준출발절차)</label>
+                  <input 
+                    type="text" 
+                    value={metadata.sid || ''}
+                    onChange={(e) => onUpdateMetadata(dateStr, activeLeg, 'sid', e.target.value)}
+                    placeholder="예: NUKER 1K"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-slate-400 mb-1">STAR (표준도착절차)</label>
+                  <input 
+                    type="text" 
+                    value={metadata.star || ''}
+                    onChange={(e) => onUpdateMetadata(dateStr, activeLeg, 'star', e.target.value)}
+                    placeholder="예: SPEAR 1A"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-slate-400 mb-1">ARR RWY (도착 활주로)</label>
+                  <input 
+                    type="text" 
+                    value={metadata.arrRwy || ''}
+                    onChange={(e) => onUpdateMetadata(dateStr, activeLeg, 'arrRwy', e.target.value)}
+                    placeholder="예: 19"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <i data-lucide="sliders" class="w-5 h-5 text-indigo-400"></i>
+                [{activeLeg === 'outbound' ? '출발편' : '복귀편'}] Phase별 디브리핑 작성
+              </h3>
+              <span className="text-xs text-slate-400">총 11개 Phase 구분</span>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6">
+              {PHASES.map((phase) => {
+                const phaseLogs = phases[phase.id] || [];
+
+                return (
+                  <div key={phase.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                      <div className="flex items-center space-x-3">
+                        <span className="text-xl">{phase.icon}</span>
+                        <h4 className="text-base font-bold text-white">{phase.name}</h4>
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${phase.color}`}>
+                          {phaseLogs.length} 건 등록됨
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => onAddLog(dateStr, activeLeg, phase.id)}
+                        className="flex items-center space-x-1 bg-slate-800 hover:bg-slate-700 text-indigo-400 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-700 transition-colors"
+                      >
+                        <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                        <span>후기 항목 추가</span>
+                      </button>
+                    </div>
+
+                    {phaseLogs.length === 0 ? (
+                      <div className="text-center py-6 text-slate-500 text-xs border border-dashed border-slate-800 rounded-xl">
+                        작성된 후기가 없습니다. 우측 상단의 '+ 후기 항목 추가' 버튼을 눌러 기록을 남겨보세요.
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {phaseLogs.map((log, index) => (
+                          <div key={log.id} className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+                            <div className="flex items-center justify-between text-xs text-slate-400 font-semibold border-b border-slate-900 pb-2">
+                              <span className="text-indigo-400 font-mono">Log #{index + 1}</span>
+                              <button
+                                onClick={() => onDeleteLog(dateStr, activeLeg, phase.id, log.id)}
+                                className="text-slate-500 hover:text-rose-400 transition-colors"
+                              >
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                              </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                              <div>
+                                <label className="block text-[11px] font-semibold text-amber-400 mb-1 flex items-center gap-1">
+                                  <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> 1. 상황 (Situation)
+                                </label>
+                                <textarea
+                                  rows={3}
+                                  value={log.situation}
+                                  onChange={(e) => onUpdateLog(dateStr, activeLeg, phase.id, log.id, 'situation', e.target.value)}
+                                  placeholder="어떠한 상황이었는지 기재하세요."
+                                  className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-amber-500/50"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-[11px] font-semibold text-rose-400 mb-1 flex items-center gap-1">
+                                  <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> 2. 내가 한 조작 (My Action)
+                                </label>
+                                <textarea
+                                  rows={3}
+                                  value={log.myAction}
+                                  onChange={(e) => onUpdateLog(dateStr, activeLeg, phase.id, log.id, 'myAction', e.target.value)}
+                                  placeholder="당시 수행한 조작 내용을 기재하세요."
+                                  className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-rose-500/50"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-[11px] font-semibold text-emerald-400 mb-1 flex items-center gap-1">
+                                  <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i> 3. 옳은 조작 (Correct Action)
+                                </label>
+                                <textarea
+                                  rows={3}
+                                  value={log.correctAction}
+                                  onChange={(e) => onUpdateLog(dateStr, activeLeg, phase.id, log.id, 'correctAction', e.target.value)}
+                                  placeholder="권장 및 옳은 표준 절차를 기재하세요."
+                                  className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-emerald-500/50"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function PhaseTimelineView({ flightLogs }) {
+      const [selectedPhaseModal, setSelectedPhaseModal] = useState(null);
+
+      const aggregatedPhases = {};
+      PHASES.forEach(p => {
+        aggregatedPhases[p.id] = [];
+      });
+
+      Object.entries(flightLogs).forEach(([dateStr, dateLogData]) => {
+        ['outbound', 'inbound'].forEach(legKey => {
+          const legData = dateLogData[legKey];
+          if (!legData || !legData.phases) return;
+
+          Object.entries(legData.phases).forEach(([phaseId, logs]) => {
+            if (Array.isArray(logs)) {
+              logs.forEach(log => {
+                if (log.situation || log.myAction || log.correctAction) {
+                  if (!aggregatedPhases[phaseId]) aggregatedPhases[phaseId] = [];
+                  aggregatedPhases[phaseId].push({
+                    dateStr,
+                    legKey,
+                    flightNo: legData.metadata?.flightNo || '-',
+                    route: `${legData.metadata?.dep || ''} → ${legData.metadata?.arr || ''}`,
+                    ...log
+                  });
+                }
+              });
+            }
+          });
+        });
+      });
+
+      return (
+        <div className="space-y-6">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
+            <div>
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <i data-lucide="layers" class="w-5 h-5 text-indigo-400"></i> Phase별 직관적 종합 디브리핑
+              </h2>
+              <p className="text-xs text-slate-400 mt-1">
+                출발편/복귀편 상관없이 여태까지 작성된 모든 PHASE별 후기들이 직관적으로 통합되어 보여집니다. 
+                각 PHASE 카드를 클릭하면 등록된 종합 후기들을 확인하실 수 있습니다.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {PHASES.map((phase) => {
+                const logs = aggregatedPhases[phase.id] || [];
+                const hasLogs = logs.length > 0;
+
+                return (
+                  <div
+                    key={phase.id}
+                    onClick={() => {
+                      if (hasLogs) {
+                        setSelectedPhaseModal({
+                          phase,
+                          logs
+                        });
+                      }
+                    }}
+                    className={`p-5 rounded-2xl border transition-all flex flex-col justify-between space-y-3 ${
+                      hasLogs 
+                        ? 'bg-slate-950 border-indigo-500/50 shadow-lg hover:border-indigo-400 cursor-pointer hover:scale-[1.02]' 
+                        : 'bg-slate-950/40 border-slate-900 opacity-40 cursor-default'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-3xl">{phase.icon}</span>
+                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${hasLogs ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-500'}`}>
+                        {logs.length} 건
+                      </span>
+                    </div>
+
+                    <div>
+                      <h4 className="text-base font-bold text-white">{phase.name}</h4>
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        {hasLogs ? `${logs.length}개의 후기 항목 종합됨` : '등록된 후기 없음'}
+                      </p>
+                    </div>
+
+                    {hasLogs && (
+                      <div className="text-[11px] text-indigo-400 font-semibold flex items-center gap-1 pt-2 border-t border-slate-900">
+                        <span>종합 후기 보기</span>
+                        <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {selectedPhaseModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn">
+              <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+                <div className="p-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-2xl">{selectedPhaseModal.phase.icon}</span>
+                    <div>
+                      <h3 className="font-bold text-lg text-white">
+                        {selectedPhaseModal.phase.name} Phase 전체 종합 후기
+                      </h3>
+                      <p className="text-xs text-slate-400">총 {selectedPhaseModal.logs.length}건의 디브리핑 항목</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setSelectedPhaseModal(null)} className="text-slate-400 hover:text-white p-1">✕</button>
+                </div>
+
+                <div className="p-4 flex-1 overflow-y-auto space-y-4">
+                  {selectedPhaseModal.logs.map((log, index) => (
+                    <div key={log.id || index} className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+                      <div className="flex items-center justify-between text-xs text-slate-400 font-mono border-b border-slate-900 pb-2">
+                        <span className="text-indigo-400 font-bold">Entry #{index + 1} ({log.dateStr})</span>
+                        <span className="text-slate-500">{log.route} (편명: {log.flightNo})</span>
+                      </div>
+                      <div className="space-y-2 text-xs">
+                        <div>
+                          <span className="font-bold text-amber-400 block mb-0.5">1. 상황 (Situation):</span>
+                          <p className="bg-slate-900 p-2.5 rounded-lg border border-slate-800 text-slate-200">{log.situation || '-'}</p>
+                        </div>
+                        <div>
+                          <span className="font-bold text-rose-400 block mb-0.5">2. 내가 한 조작 (My Action):</span>
+                          <p className="bg-slate-900 p-2.5 rounded-lg border border-slate-800 text-slate-200">{log.myAction || '-'}</p>
+                        </div>
+                        <div>
+                          <span className="font-bold text-emerald-400 block mb-0.5">3. 옳은 조작 (Correct Action):</span>
+                          <p className="bg-slate-900 p-2.5 rounded-lg border border-slate-800 text-slate-200">{log.correctAction || '-'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="p-4 bg-slate-950 border-t border-slate-800 text-right">
+                  <button onClick={() => setSelectedPhaseModal(null)} className="px-4 py-2 bg-slate-800 text-white rounded-lg text-xs font-semibold">닫기</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function AirportSummaryView({ type, flightLogs, schedules, phases, onSelectDate }) {
+      const isDeparture = type === 'departure';
+      const title = isDeparture ? '출발공항 종합 후기' : '도착공항 종합 후기';
+      const subtitle = isDeparture 
+        ? 'Preflight부터 Climb Phase까지 작성된 모든 후기들을 공항별로 종합합니다.' 
+        : 'Descent부터 Ramp in Phase까지 작성된 모든 후기들을 공항별로 종합합니다.';
+
+      const [selectedAirportFilter, setSelectedAirportFilter] = useState('ALL');
+      const [inspectModalItem, setInspectModalItem] = useState(null);
+
+      const aggregatedData = [];
+
+      Object.entries(flightLogs).forEach(([dateStr, dateLogData]) => {
+        ['outbound', 'inbound'].forEach(legKey => {
+          const legData = dateLogData[legKey];
+          if (!legData) return;
+
+          const metadata = legData.metadata || {};
+          const logPhases = legData.phases || {};
+          const targetAirport = isDeparture ? metadata.dep : metadata.arr;
+
+          phases.forEach(phaseId => {
+            const logs = logPhases[phaseId] || [];
+            logs.forEach(log => {
+              if (log.situation || log.myAction || log.correctAction) {
+                aggregatedData.push({
+                  dateStr,
+                  legKey,
+                  airport: targetAirport || 'UNKNOWN',
+                  phaseId,
+                  metadata,
+                  log
+                });
+              }
+            });
+          });
+        });
+      });
+
+      const uniqueAirports = Array.from(new Set(aggregatedData.map(d => d.airport))).filter(Boolean);
+
+      const filteredData = selectedAirportFilter === 'ALL' 
+        ? aggregatedData 
+        : aggregatedData.filter(d => d.airport === selectedAirportFilter);
+
+      return (
+        <div className="space-y-6">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center space-x-3">
+                <div className={`p-3 rounded-xl border ${isDeparture ? 'bg-sky-500/10 border-sky-500/30 text-sky-400' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'}`}>
+                  <i data-lucide="navigation" class={`w-6 h-6 ${isDeparture ? 'rotate-45' : 'rotate-135'}`}></i>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">{title}</h2>
+                  <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5 text-[10px]">
+                {phases.map(p => (
+                  <span key={p} className="px-2 py-1 bg-slate-800 border border-slate-700 text-slate-300 rounded-md font-mono">
+                    {p}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2 pt-2 border-t border-slate-800 overflow-x-auto pb-1">
+              <span className="text-xs text-slate-400 font-semibold mr-2 flex items-center gap-1">
+                <i data-lucide="map-pin" class="w-3.5 h-3.5 text-indigo-400"></i> 공항 필터:
+              </span>
+              <button
+                onClick={() => setSelectedAirportFilter('ALL')}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                  selectedAirportFilter === 'ALL' ? 'bg-indigo-600 text-white' : 'bg-slate-950 text-slate-400 hover:bg-slate-800'
+                }`}
+              >
+                전체 보기 ({aggregatedData.length})
+              </button>
+              {uniqueAirports.map(apt => {
+                const count = aggregatedData.filter(d => d.airport === apt).length;
+                return (
+                  <button
+                    key={apt}
+                    onClick={() => setSelectedAirportFilter(apt)}
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                      selectedAirportFilter === apt ? 'bg-indigo-600 text-white' : 'bg-slate-950 text-slate-400 hover:bg-slate-800'
+                    }`}
+                  >
+                    {apt} ({count})
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {filteredData.length === 0 ? (
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center text-slate-500 text-sm">
+                해당 공항/Phase 조건으로 작성된 디브리핑 후기가 없습니다.
+              </div>
+            ) : (
+              filteredData.map((item, idx) => {
+                const phaseInfo = PHASES.find(p => p.id === item.phaseId) || { name: item.phaseId, icon: '✈️' };
+
+                return (
+                  <div 
+                    key={`${item.dateStr}-${item.legKey}-${item.phaseId}-${idx}`} 
+                    onClick={() => setInspectModalItem(item)}
+                    className="bg-slate-900 border border-slate-800 hover:border-indigo-500/50 rounded-xl p-4 shadow-md flex flex-wrap items-center justify-between gap-4 cursor-pointer transition-all group"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="bg-indigo-600/20 text-indigo-400 text-xs font-mono font-bold px-2.5 py-1 rounded-md border border-indigo-500/30">
+                        {item.dateStr}
+                      </span>
+                      <span className={`text-xs font-bold px-2.5 py-1 rounded-md ${item.legKey === 'outbound' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'bg-sky-500/10 text-sky-400 border border-sky-500/20'}`}>
+                        {item.legKey === 'outbound' ? '출발편' : '복귀편'}
+                      </span>
+                      <span className="bg-slate-800 text-white text-xs font-bold px-2.5 py-1 rounded-md">
+                        {item.airport} 공항
+                      </span>
+                      <span className="flex items-center gap-1.5 text-xs font-bold text-slate-200 bg-slate-950 px-2.5 py-1 rounded-md border border-slate-800">
+                        <span>{phaseInfo.icon}</span>
+                        <span>{phaseInfo.name}</span>
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-4 text-xs text-slate-400">
+                      <div><span className="text-slate-500">편명:</span> <span className="font-mono text-white">{item.metadata?.flightNo || '-'}</span></div>
+                      <div><span className="text-slate-500">구간:</span> <span className="font-mono text-white">{item.metadata?.dep} &rarr; {item.metadata?.arr}</span></div>
+                      <span className="text-indigo-400 font-semibold group-hover:translate-x-1 transition-transform">상세보기 &rarr;</span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {inspectModalItem && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn">
+              <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+                <div className="p-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-2xl">{(PHASES.find(p => p.id === inspectModalItem.phaseId) || {}).icon || '✈️'}</span>
+                    <div>
+                      <h3 className="font-bold text-lg text-white">
+                        {inspectModalItem.airport}공항 종합 ({inspectModalItem.phaseId})
+                      </h3>
+                      <p className="text-xs text-slate-400">날짜: {inspectModalItem.dateStr} | 편명: {inspectModalItem.metadata?.flightNo}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setInspectModalItem(null)} className="text-slate-400 hover:text-white p-1">✕</button>
+                </div>
+
+                <div className="bg-slate-900 border-b border-slate-800 px-4 py-2 flex flex-wrap gap-4 text-[11px] text-slate-300">
+                  <div><span className="text-slate-500">기장:</span> {inspectModalItem.metadata?.captain || '-'}</div>
+                  <div><span className="text-slate-500">DEP RWY:</span> {inspectModalItem.metadata?.depRwy || '-'}</div>
+                  <div><span className="text-slate-500">SID:</span> {inspectModalItem.metadata?.sid || '-'}</div>
+                  <div><span className="text-slate-500">STAR:</span> {inspectModalItem.metadata?.star || '-'}</div>
+                  <div><span className="text-slate-500">ARR RWY:</span> {inspectModalItem.metadata?.arrRwy || '-'}</div>
+                </div>
+
+                <div className="p-4 flex-1 overflow-y-auto space-y-4 text-xs">
+                  <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+                    <div><span className="font-bold text-amber-400 block mb-1">1. 상황 (Situation)</span><p className="bg-slate-900 p-3 rounded-lg border border-slate-800 text-slate-200">{inspectModalItem.log.situation || '-'}</p></div>
+                    <div><span className="font-bold text-rose-400 block mb-1">2. 내가 한 조작 (My Action)</span><p className="bg-slate-900 p-3 rounded-lg border border-slate-800 text-slate-200">{inspectModalItem.log.myAction || '-'}</p></div>
+                    <div><span className="font-bold text-emerald-400 block mb-1">3. 옳은 조작 (Correct Action)</span><p className="bg-slate-900 p-3 rounded-lg border border-slate-800 text-slate-200">{inspectModalItem.log.correctAction || '-'}</p></div>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-slate-950 border-t border-slate-800 flex justify-between items-center">
+                  <button
+                    onClick={() => {
+                      const d = inspectModalItem.dateStr;
+                      const l = inspectModalItem.legKey;
+                      setInspectModalItem(null);
+                      onSelectDate(d, l);
+                    }}
+                    className="text-xs text-indigo-400 hover:underline font-semibold"
+                  >
+                    일자별 후기로 바로 이동 &rarr;
+                  </button>
+                  <button onClick={() => setInspectModalItem(null)} className="px-4 py-2 bg-slate-800 text-white rounded-lg text-xs font-semibold">닫기</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
